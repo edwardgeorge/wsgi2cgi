@@ -8,16 +8,16 @@ and translates the WSGI protocol to the Common Gateway Interface (CGI).
 
 Example:
 
-    >>> from wsgiref.simple_server import make_server
-    >>> import wsgi2cgi
+    from wsgiref.simple_server import make_server
+    import wsgi2cgi
 
-    >>> def app(environ, start_response):
-    >>>    wapp = wsgi2cgi.CGI('/path/to/executable.cgi')
-    >>>    return wapp.application(environ, start_response)
+    def app(environ, start_response):
+       wapp = wsgi2cgi.CGI('/path/to/executable.cgi')
+       return wapp.application(environ, start_response)
 
-    >>> httpd = make_server('127.0.0.1', 8000, app)
-    >>> print "Serving on 127.0.0.1:8000..."
-    >>> httpd.serve_forever()
+    httpd = make_server('127.0.0.1', 8000, app)
+    print "Serving on 127.0.0.1:8000..."
+    httpd.serve_forever()
 
 The WSGI application can be used with [any server supporting WGSI](http://wsgi.readthedocs.org/en/latest/servers.html).
 
