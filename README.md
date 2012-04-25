@@ -19,7 +19,7 @@ Example:
     print "Serving on 127.0.0.1:8000..."
     httpd.serve_forever()
 
-The WSGI application can be used with [any server supporting WGSI](http://wsgi.readthedocs.org/en/latest/servers.html).
+The WSGI application can be used with [any server supporting WSGI](http://wsgi.readthedocs.org/en/latest/servers.html).
 
 
 Install
