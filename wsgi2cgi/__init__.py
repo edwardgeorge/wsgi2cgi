@@ -140,10 +140,11 @@ class CGI(object):
             if not line:
                 break
 
-            if response is None:
-                if re.match(r'Status: [0-9]{3}.*', line):
-                    response = line[len("Status :"):]
-                    continue
+            if re.match(r'Status: [0-9]{3}.*', line):
+                if response:
+                    self.log_error('duplicated Status header: %s' % line)
+                response = line[len("Status :"):]
+                continue
 
             if ':' not in line:
                 self.log_error('invalid header: %s' % line)
