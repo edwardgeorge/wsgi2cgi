@@ -10,6 +10,7 @@ __author__  =  'Juan J. Martinez'
 __version__ =  '0.1'
 __all__ = "CGI"
 
+import sys
 import re
 from subprocess import Popen, PIPE, STDOUT
 
@@ -68,6 +69,7 @@ class CGI(object):
         """
         self.cmd = [arg.strip() for arg in command.split(' ')]
         self.extra_env = extra_env
+        self.env = dict()
 
         if extra_env and not isinstance(extra_env, dict):
             raise ValueError("extra_env is not a dictionary")
@@ -81,8 +83,9 @@ class CGI(object):
 
         The destination of the error messages depends on the WSGI server.
         """
-        self.env['wsgi.errors'].write("%s: %s\n" % (self.cmd, message))
-        self.env['wsgi.errors'].flush()
+        fd = self.env.get('wsgi.errors', sys.stderr)
+        fd.write("%s: %s\n" % (self.cmd, message))
+        fd.flush()
 
     def application(self, environ, start_response):
         """
