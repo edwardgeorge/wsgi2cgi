@@ -125,7 +125,7 @@ class CGI(object):
             return
 
         stdin = environ['wsgi.input']
-        while content_length:
+        while content_length > 0:
             data = stdin.read(BUFFER)
             if not data:
                 break
