@@ -124,8 +124,8 @@ class CGI(object):
             yield "500 Internal Server Error\n"
             return
 
-        stdin = environ['wsgi.input']
-        while content_length > 0:
+        stdin = environ.get('wsgi.input', None)
+        while stdin and content_length > 0:
             data = stdin.read(BUFFER)
             if not data:
                 break
