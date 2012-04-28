@@ -1,7 +1,7 @@
 wsgi2cgi
 ========
 
-Run CGI apps under Python WSGI protocol ([PEP 333](http://www.python.org/dev/peps/pep-0333/)).
+Run CGI apps under Python WSGI protocol ([PEP 333][PEP-333]).
 
 This is a simple WSGI application that executes an external process
 and translates the WSGI protocol to the Common Gateway Interface (CGI).
@@ -19,19 +19,24 @@ Example:
     print "Serving on 127.0.0.1:8000..."
     httpd.serve_forever()
 
-The WSGI application can be used with [any server supporting WSGI](http://wsgi.readthedocs.org/en/latest/servers.html).
+The WSGI application can be used with [any server supporting WSGI][WSGI Servers].
+
+[PEP-333]: http://www.python.org/dev/peps/pep-0333/
+[WSGI Servers]: http://wsgi.readthedocs.org/en/latest/servers.html
 
 
 Install
 -------
 
-The module can be installed [from source](https://github.com/reidrac/wsgi2cgi) using setup.py:
+The module can be installed [from source][source code] using setup.py:
 
     python setup.py install
 
-Alternativelly it can be installed with [pip](http://pypi.python.org/pypi/pip):
+Alternativelly it can be installed with pip:
 
     pip install wsgi2cgi
+
+[source code]: https://github.com/reidrac/wsgi2cgi
 
 
 License
