@@ -9,6 +9,7 @@ sys.path.append(tests)
 sys.path.append(tests + "/..")
 
 from get import *
+from post import *
 
 if __name__ == '__main__':
         unittest.main()
