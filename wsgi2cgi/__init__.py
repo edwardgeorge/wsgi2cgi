@@ -7,7 +7,7 @@ and translates the WSGI protocol to the Common Gateway Interface (CGI).
 For example usage, see the CGI class.
 """
 __author__  =  'Juan J. Martinez'
-__version__ =  '0.1'
+__version__ =  '0.2'
 __all__ = "CGI"
 
 import sys
