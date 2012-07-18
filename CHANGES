@@ -1,9 +1,16 @@
+2012-07-18 Juan J. Martinez <jjm@usebox.net>
+
+    * Release 0.2.1
+        * Small fixes to look OK in PyPi
+
 2012-04-28 Juan J. Martinez <jjm@usebox.net>
 
-    * Small fixes
-    * Tests
+    * Release 0.2
+        * Small fixes
+        * Tests
 
 2012-04-25 Juan J. Martinez <jjm@usebox.net>
 
-    * Fist public release.
+    * Release 0.1
+        * Fist public release
 
