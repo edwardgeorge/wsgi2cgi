@@ -54,60 +54,45 @@ def _set_nonblocking(fd):
     fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
 
-def _iter_lines(stdout, stderr, stderr_obj):
+def _iter_multiple(stdout, stderr=None):
     _set_nonblocking(stdout)
     _set_nonblocking(stderr)
-    output_buffer = ''
 
     while True:
-        first_newline = output_buffer.find('\n')
-        if first_newline != -1:
-            nln = first_newline + 1
-            out, output_buffer = output_buffer[:nln], output_buffer[nln:]
-            yield out
-            continue
-
         to_read = [i for i in (stdout, stderr) if not i.closed]
         if not to_read:
-            if output_buffer:
-                yield output_buffer
-            yield ''
+            yield None
             return
+        ret_out, ret_err = '', ''
         r, w, e = select.select(to_read, [], [])
 
         if stderr in r:
-            d = stderr.read(BUFFER)
-            if not d:
+            ret_err = stderr.read(BUFFER)
+            if not ret_err:
                 stderr.close()
-                continue
-            stderr_obj.write(d)
-            stderr_obj.flush()
 
         if stdout in r:
-            d = stdout.read(BUFFER)
-            if not d:
+            ret_out = stdout.read(BUFFER)
+            if not ret_out:
                 stdout.close()
-                continue
-            output_buffer = output_buffer + d
+
+        yield ret_out, ret_err
 
 
 def _iter_single(stdout):
     while True:
-        line = stdout.readline()
-        if not line:
+        d = stdout.read(BUFFER)
+        yield (d, '')
+        if not d:
             stdout.close()
-            yield ''
-            return
-        yield line
+            break
+    yield None
 
 
 def _iter_windows_fallback(process, stderr_obj):
     stdout, stderr = process.communicate()
-    stderr_obj.write(stderr)
-    stderr_obj.flush()
-    for line in stdout.splitlines(True):
-        yield line
-    yield ''
+    yield stdout, stderr
+    yield None
 
 
 class CGI(object):
@@ -224,38 +209,60 @@ class CGI(object):
             if not has_fcntl:
                 line_iterator = _iter_windows_fallback(process, stderr)
             else:
-                line_iterator = _iter_lines(process.stdout, process.stderr, stderr)
+                line_iterator = _iter_multiple(process.stdout, process.stderr)
         else:
             line_iterator = _iter_single(process.stdout)
 
         response = None
         headers = []
+        rbuffer = ''
+        response_started = False
+        status_re = re.compile(r'Status: ([0-9]{3}.*)$')
+
         while True:
-            line = next(line_iterator).strip()
-            if not line:
+            d = next(line_iterator)
+            if not d:
                 break
 
-            if re.match(r'Status: [0-9]{3}.*', line):
-                if response:
-                    self.log_error('duplicated Status header: %s' % line)
-                response = line[len("Status :"):]
+            if d[1] and stderr is not STDOUT:  # stderr
+                stderr.write(d[1])
+                stderr.flush()
+
+            if response_started:
+                if d[0]:
+                    yield d[0]
                 continue
 
-            if ':' not in line:
-                self.log_error('invalid header: %s' % line)
-                start_response("500 Internal Server Error", [('Content-Type', 'text/plain')])
-                yield "500 Internal Server Error\n"
-                return
+            rbuffer = rbuffer + d[0]
+            while True:
+                newln = rbuffer.find('\n')
+                if newln == -1:
+                    break
 
-            header, value = line.split(':', 1)
-            headers.append((header.strip(), value.strip()))
+                newln = newln + 1
+                line, rbuffer = rbuffer[:newln].strip(), rbuffer[newln:]
+                if not line:
+                    start_response(response or "200 OK", headers)
+                    response_started = True
+                    if rbuffer:
+                        yield rbuffer
+                    break
 
-        start_response(response or "200 OK", headers)
+                is_status = status_re.match(line)
+                if is_status:
+                    if response:
+                        self.log_error('duplicated Status header: %s' % line)
+                    response = is_status.group(1)
+                    continue
 
-        while True:
-            data = next(line_iterator)
-            if not data:
-                break
-            yield data
+                if ':' not in line:
+                    self.log_error('invalid header: %s' % line)
+                    start_response("500 Internal Server Error",
+                                   [('Content-Type', 'text/plain')])
+                    yield "500 Internal Server Error\n"
+                    return
+
+                header, value = line.split(':', 1)
+                headers.append((header.strip(), value.strip()))
 
         return
