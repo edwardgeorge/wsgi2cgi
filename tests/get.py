@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from StringIO import StringIO
+import sys
 
 from base import BaseTestCase
 import wsgi2cgi
@@ -22,6 +23,11 @@ print "Content-Type: text/plain\\n"
 print json.dumps(dict(os.environ))
 """
 
+IGNORE_DARWIN = ('__CF_USER_TEXT_ENCODING',
+                 'VERSIONER_PYTHON_PREFER_32_BIT',
+                 'VERSIONER_PYTHON_VERSION', )
+
+
 class TestGetMethod(BaseTestCase):
 
     def test_wsgiref_defaults(self):
@@ -37,6 +43,8 @@ class TestGetMethod(BaseTestCase):
 
         for key, value in response.iteritems():
             if not key.startswith("HTTP_"):
+                if sys.platform == 'darwin' and key in IGNORE_DARWIN:
+                    continue
                 self.assertTrue(key in wsgi2cgi.CGI_VARS)
 
     def test_http_headers(self):
@@ -53,6 +61,8 @@ class TestGetMethod(BaseTestCase):
 
         for key, value in response.iteritems():
             if not key.startswith("HTTP_"):
+                if sys.platform == 'darwin' and key in IGNORE_DARWIN:
+                    continue
                 self.assertTrue(key in wsgi2cgi.CGI_VARS)
 
         self.assertEqual(response['HTTP_EXTRA_HEADER'], 'extra-http-header')
