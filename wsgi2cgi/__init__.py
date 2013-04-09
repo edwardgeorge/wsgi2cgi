@@ -10,9 +10,17 @@ __author__  =  'Juan J. Martinez'
 __version__ =  '0.2.1'
 __all__ = "CGI"
 
+import os
+import select
 import sys
 import re
 from subprocess import Popen, PIPE, STDOUT
+
+try:
+    import fcntl
+    has_fcntl = True
+except ImportError:
+    has_fcntl = False
 
 # Allowed CGI environmental variables
 CGI_VARS = """
@@ -38,6 +46,70 @@ CONTENT_LENGTH
 # Buffer size for buffered input/output
 BUFFER = 1024*64
 
+
+def _set_nonblocking(fd):
+    flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+    if flags & os.O_NONBLOCK:
+        return
+    fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
+
+def _iter_lines(stdout, stderr, stderr_obj):
+    _set_nonblocking(stdout)
+    _set_nonblocking(stderr)
+    output_buffer = ''
+
+    while True:
+        first_newline = output_buffer.find('\n')
+        if first_newline != -1:
+            nln = first_newline + 1
+            out, output_buffer = output_buffer[:nln], output_buffer[nln:]
+            yield out
+            continue
+
+        to_read = [i for i in (stdout, stderr) if not i.closed]
+        if not to_read:
+            if output_buffer:
+                yield output_buffer
+            yield ''
+            return
+        r, w, e = select.select(to_read, [], [])
+
+        if stderr in r:
+            d = stderr.read(BUFFER)
+            if not d:
+                stderr.close()
+                continue
+            stderr_obj.write(d)
+            stderr_obj.flush()
+
+        if stdout in r:
+            d = stdout.read(BUFFER)
+            if not d:
+                stdout.close()
+                continue
+            output_buffer = output_buffer + d
+
+
+def _iter_single(stdout):
+    while True:
+        line = stdout.readline()
+        if not line:
+            stdout.close()
+            yield ''
+            return
+        yield line
+
+
+def _iter_windows_fallback(process, stderr_obj):
+    stdout, stderr = process.communicate()
+    stderr_obj.write(stderr)
+    stderr_obj.flush()
+    for line in stdout.splitlines(True):
+        yield line
+    yield ''
+
+
 class CGI(object):
     """
     Run a CGI app with WSGI.
@@ -55,7 +127,7 @@ class CGI(object):
     >>> httpd.serve_forever()
 
     """
-    def __init__(self, command, extra_env=None):
+    def __init__(self, command, extra_env=None, redirect_stderr=False):
         """
         CGI class constructor.
 
@@ -63,6 +135,9 @@ class CGI(object):
             command: the command to be executed (absolute path).
             extra_env: additional environment variables, useful to pass
                 configuration information to some CGI applications.
+            redirect_stderr: redirect stderr to stdout. default is to send
+                stderr to the file provided by the 'wsgi.errors'
+                environment variable.
 
         Raises:
             ValueError: extra_env is not a dictionary.
@@ -70,6 +145,7 @@ class CGI(object):
         self.cmd = [arg.strip() for arg in command.split(' ')]
         self.extra_env = extra_env
         self.env = dict()
+        self.redirect_stderr = redirect_stderr
 
         if extra_env and not isinstance(extra_env, dict):
             raise ValueError("extra_env is not a dictionary")
@@ -108,8 +184,19 @@ class CGI(object):
         if self.extra_env:
             cgi_env.update(self.extra_env)
 
+        if self.redirect_stderr:
+            stderr = STDOUT
+        else:
+            stderr = environ.get('wsgi.errors', sys.stderr)
+            if hasattr(stderr, 'fileno'):
+                stderr_arg = stderr
+                select_for_stderr = False
+            else:
+                stderr_arg = PIPE
+                select_for_stderr = True
+
         try:
-            process = Popen(self.cmd, stdin=PIPE, stdout=PIPE, stderr=STDOUT, env=cgi_env)
+            process = Popen(self.cmd, stdin=PIPE, stdout=PIPE, stderr=stderr_arg, env=cgi_env)
         except (OSError, ValueError), e:
             self.log_error(str(e))
             start_response("500 Internal Server Error", [('Content-Type', 'text/plain')])
@@ -133,10 +220,18 @@ class CGI(object):
             process.stdin.write(data)
         process.stdin.close()
 
+        if select_for_stderr:
+            if not has_fcntl:
+                line_iterator = _iter_windows_fallback(process, stderr)
+            else:
+                line_iterator = _iter_lines(process.stdout, process.stderr, stderr)
+        else:
+            line_iterator = _iter_single(process.stdout)
+
         response = None
         headers = []
         while True:
-            line = process.stdout.readline().strip()
+            line = next(line_iterator).strip()
             if not line:
                 break
 
@@ -158,10 +253,9 @@ class CGI(object):
         start_response(response or "200 OK", headers)
 
         while True:
-            data = process.stdout.read(BUFFER)
+            data = next(line_iterator)
             if not data:
                 break
             yield data
 
-        process.stdout.close()
         return
