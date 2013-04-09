@@ -89,7 +89,7 @@ def _iter_single(stdout):
     yield None
 
 
-def _iter_windows_fallback(process, stderr_obj):
+def _iter_windows_fallback(process):
     stdout, stderr = process.communicate()
     yield stdout, stderr
     yield None
@@ -207,7 +207,7 @@ class CGI(object):
 
         if select_for_stderr:
             if not has_fcntl:
-                line_iterator = _iter_windows_fallback(process, stderr)
+                line_iterator = _iter_windows_fallback(process)
             else:
                 line_iterator = _iter_multiple(process.stdout, process.stderr)
         else:
